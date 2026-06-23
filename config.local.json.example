@@ -1,0 +1,5 @@
+{
+  "_comment": "Copy to config.local.json and edit for your machine. config.local.json is not committed.",
+  "novopayRoot": "C:\\Users\\your.name\\Desktop\\novopay",
+  "reportDirectory": "C:\\Users\\your.name\\Desktop"
+}

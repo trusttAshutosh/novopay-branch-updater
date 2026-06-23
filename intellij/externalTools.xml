@@ -1,0 +1,9 @@
+<toolSet name="External Tools">
+  <tool name="Novopay Branch Updater" description="Sync ddp/dsa branches across all novopay repos" showInMainMenu="true" showInEditor="false" showInProject="true" showInSearchPopup="false" disabled="false" useConsole="true" showConsoleOnStdOut="true" showConsoleOnStdErr="true" synchronizeAfterRun="false">
+    <exec>
+      <option name="COMMAND" value="cmd.exe" />
+      <option name="PARAMETERS" value="/c &quot;$ProjectFileDir$\tools\novopay-branch-updater\run.cmd&quot;" />
+      <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
+    </exec>
+  </tool>
+</toolSet>

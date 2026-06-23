@@ -1,0 +1,52 @@
+{
+  "novopayRoot": "",
+  "novopayRootEnv": "NOVOPAY_ROOT",
+  "reportDirectory": "",
+  "reportFileName": "novopay-branch-update-report-latest.html",
+  "scheduler": {
+    "taskNamePrefix": "Novopay Branch Updater",
+    "idleMinutes": 5,
+    "waitForIdleHours": 2,
+    "weekdayTimes": ["09:00", "21:00"]
+  },
+  "frontend": {
+    "repos": [
+      "novopay-platform-webapp",
+      "novopay-platform-consents-webapp",
+      "novopay-platform-agent-webapp"
+    ],
+    "branches": [
+      "dsa-qa",
+      "dsa-prod",
+      "dsa-uat",
+      "dsa-bkup-qa",
+      "dsa-bkup-uat"
+    ]
+  },
+  "backend": {
+    "branches": [
+      "ddp-uat",
+      "ddp-bkup-uat",
+      "ddp-fea-prod-stable",
+      "ddp-qa",
+      "ddp-bkup-qa"
+    ]
+  },
+  "allLocalBranchesRepos": [
+    "trustt-platform-ddp-manual-report-queries"
+  ],
+  "excludedRepos": [],
+  "preferredRepoOrder": [
+    "novopay-platform-lib",
+    "novopay-platform-creditcard-management",
+    "novopay-platform-masterdata-management",
+    "novopay-platform-api-gateway",
+    "novopay-platform-actor",
+    "novopay-platform-consents",
+    "novopay-platform-notifications",
+    "novopay-platform-initial-setup",
+    "novopay-platform-banking-origination",
+    "novopay-platform-batch",
+    "novopay-platform-approval"
+  ]
+}
