@@ -58,9 +58,10 @@ else {
     $html += $heartbeat
 }
 
-$script:lastPing = [datetime]::UtcNow
-$script:forceClose = $false
-$script:reportHtml = $html
+$lastPing = [datetime]::UtcNow
+$forceClose = $false
+$reportHtml = $html
+$browserOpened = $false
 
 function Send-TextResponse {
     param(
@@ -99,33 +100,24 @@ function Handle-ReportRequest {
     }
 }
 
-$callback = {
-    param($Result)
-    $httpListener = $Result.AsyncState
-    if (-not $httpListener.IsListening) {
-        return
-    }
+$pending = $listener.BeginGetContext($null, $null)
 
-    try {
-        $context = $httpListener.EndGetContext($Result)
-        Handle-ReportRequest -Context $context
-    }
-    catch {
-        # Listener stopped.
-    }
-
-    if ($httpListener.IsListening) {
-        $httpListener.BeginGetContext($callback, $httpListener) | Out-Null
-    }
-}
-
-$listener.BeginGetContext($callback, $listener) | Out-Null
+# Let the listener accept connections before the browser hits it.
+Start-Sleep -Milliseconds 400
 Start-Process "http://127.0.0.1:$port/"
+$browserOpened = $true
 
-while (-not $script:forceClose) {
-    Start-Sleep -Seconds 2
-    $idleSeconds = ([datetime]::UtcNow - $script:lastPing).TotalSeconds
-    if ($idleSeconds -ge 8) {
+while (-not $forceClose) {
+    if ($pending.AsyncWaitHandle.WaitOne(1000)) {
+        $context = $listener.EndGetContext($pending)
+        Handle-ReportRequest -Context $context
+        if ($listener.IsListening) {
+            $pending = $listener.BeginGetContext($null, $null)
+        }
+    }
+
+    $idleSeconds = ([datetime]::UtcNow - $lastPing).TotalSeconds
+    if ($browserOpened -and $idleSeconds -ge 8) {
         break
     }
 }

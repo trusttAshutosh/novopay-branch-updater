@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Novopay Branch Update Report (sample)</title>
+  <style>
+    body { font-family: "Segoe UI", sans-serif; background: #f4f6f8; margin: 0; padding: 24px; }
+    header { background: linear-gradient(135deg, #0f172a, #1e3a5f); color: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    .stat { background: #fff; border: 1px solid #dde3ea; border-radius: 10px; padding: 14px; text-align: center; }
+    .value { font-size: 1.6rem; font-weight: 700; }
+    section { background: #fff; border: 1px solid #dde3ea; border-radius: 10px; margin-bottom: 16px; padding: 16px; }
+    h2 { margin-top: 0; font-size: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #dde3ea; text-align: left; }
+    .ok { color: #0f7b3c; } .bad { color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Novopay Branch Update Report</h1>
+    <p>Sample preview - your real report opens in the browser after each run.</p>
+    <p><span class="ok">All branches updated cleanly</span></p>
+  </header>
+  <div class="stats">
+    <div class="stat"><div class="value">35</div>Repos scanned</div>
+    <div class="stat"><div class="value ok">142</div>Updated OK</div>
+    <div class="stat"><div class="value bad">0</div>Merge conflicts</div>
+    <div class="stat"><div class="value">2</div>Skipped</div>
+  </div>
+  <section>
+    <h2>Repo update timing (excerpt)</h2>
+    <table>
+      <tr><th>Repo</th><th>Branches</th><th>Duration</th></tr>
+      <tr><td>novopay-platform-lib</td><td>5</td><td>24.4s</td></tr>
+      <tr><td>novopay-platform-creditcard-management</td><td>5</td><td>50.0s</td></tr>
+    </table>
+  </section>
+</body>
+</html>
