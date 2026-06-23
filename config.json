@@ -3,6 +3,32 @@
   "novopayRootEnv": "NOVOPAY_ROOT",
   "reportDirectory": "",
   "reportFileName": "novopay-branch-update-report-latest.html",
+  "defaultProfile": "weekday-sync",
+  "profiles": {
+    "weekday-sync": {},
+    "pre-release-sync": {
+      "backend": {
+        "branches": [
+          "ddp-fea-prod-stable",
+          "ddp-qa",
+          "ddp-uat"
+        ]
+      }
+    }
+  },
+  "execution": {
+    "maxParallelRepos": 3,
+    "preferFastForward": true,
+    "allowMergeOnDivergence": true,
+    "skipIfLocalAhead": true,
+    "preflightChecks": true,
+    "minFreeDiskGb": 1
+  },
+  "report": {
+    "writeJson": true,
+    "keepReport": false,
+    "notifyOnFailure": true
+  },
   "scheduler": {
     "taskNamePrefix": "Novopay Branch Updater",
     "idleMinutes": 5,
@@ -35,7 +61,9 @@
   "allLocalBranchesRepos": [
     "trustt-platform-ddp-manual-report-queries"
   ],
-  "excludedRepos": [],
+  "excludedRepos": [
+    "bob-the-builder"
+  ],
   "preferredRepoOrder": [
     "novopay-platform-lib",
     "novopay-platform-creditcard-management",

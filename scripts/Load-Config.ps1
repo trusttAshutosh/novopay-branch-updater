@@ -49,7 +49,8 @@ function Merge-ConfigObject {
 
 function Get-NovopayBranchUpdaterConfig {
     param(
-        [string]$ToolRoot
+        [string]$ToolRoot,
+        [string]$ProfileName = ''
     )
 
     $configPath = Join-Path $ToolRoot 'config.json'
@@ -63,6 +64,14 @@ function Get-NovopayBranchUpdaterConfig {
     if (Test-Path $localConfigPath) {
         $localConfig = Get-Content -Path $localConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $config = Merge-ConfigObject -Base $config -Override $localConfig
+    }
+
+    $activeProfile = if ($ProfileName) { $ProfileName } else { $config.defaultProfile }
+    if ($activeProfile -and $config.profiles -and $config.profiles.PSObject.Properties.Name -contains $activeProfile) {
+        $profileOverride = $config.profiles.$activeProfile
+        if ($profileOverride -and ($profileOverride.PSObject.Properties | Measure-Object).Count -gt 0) {
+            $config = Merge-ConfigObject -Base $config -Override $profileOverride
+        }
     }
 
     $defaultNovopayRoot = (Resolve-Path (Join-Path $ToolRoot '..\..')).Path
@@ -96,12 +105,17 @@ function Get-NovopayBranchUpdaterConfig {
         New-Item -Path $reportDirectory -ItemType Directory | Out-Null
     }
 
-  return [pscustomobject]@{
+    $execution = if ($config.execution) { $config.execution } else { [pscustomobject]@{} }
+    $reportCfg = if ($config.report) { $config.report } else { [pscustomobject]@{} }
+
+    return [pscustomobject]@{
         ToolRoot               = $ToolRoot
         NovopayRoot            = (Resolve-Path $novopayRoot).Path
         ReportDirectory        = $reportDirectory
         ReportFileName         = $config.reportFileName
         ReportPath             = Join-Path $reportDirectory $config.reportFileName
+        ReportJsonPath         = Join-Path $reportDirectory ($config.reportFileName -replace '\.html$', '.json')
+        ActiveProfile          = $activeProfile
         Scheduler              = $config.scheduler
         FrontendRepos          = @($config.frontend.repos)
         FrontendBranches       = @($config.frontend.branches)
@@ -109,5 +123,14 @@ function Get-NovopayBranchUpdaterConfig {
         AllLocalBranchesRepos  = @($config.allLocalBranchesRepos)
         ExcludedRepos          = @($config.excludedRepos)
         PreferredRepoOrder     = @($config.preferredRepoOrder)
+        MaxParallelRepos       = if ($execution.maxParallelRepos) { [int]$execution.maxParallelRepos } else { 1 }
+        PreferFastForward      = if ($null -ne $execution.preferFastForward) { [bool]$execution.preferFastForward } else { $true }
+        AllowMergeOnDivergence = if ($null -ne $execution.allowMergeOnDivergence) { [bool]$execution.allowMergeOnDivergence } else { $true }
+        SkipIfLocalAhead       = if ($null -ne $execution.skipIfLocalAhead) { [bool]$execution.skipIfLocalAhead } else { $true }
+        PreflightChecks        = if ($null -ne $execution.preflightChecks) { [bool]$execution.preflightChecks } else { $true }
+        MinFreeDiskGb          = if ($execution.minFreeDiskGb) { [double]$execution.minFreeDiskGb } else { 1 }
+        WriteJson              = if ($null -ne $reportCfg.writeJson) { [bool]$reportCfg.writeJson } else { $true }
+        KeepReport             = if ($null -ne $reportCfg.keepReport) { [bool]$reportCfg.keepReport } else { $false }
+        NotifyOnFailure        = if ($null -ne $reportCfg.notifyOnFailure) { [bool]$reportCfg.notifyOnFailure } else { $true }
     }
 }

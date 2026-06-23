@@ -1,70 +1,173 @@
 # Novopay Branch Updater
 
-Windows tool to sync `ddp-*` / `dsa-*` git branches across the Novopay multi-repo workspace, with an HTML report, optional idle scheduling, and IntelliJ integration.
+Windows tool that keeps your local Novopay git branches in sync with `origin` across every repo under your `novopay` folder. One double-click, one HTML report, no log files.
 
-## What it does
+**Repo:** https://github.com/trusttAshutosh/novopay-branch-updater
 
-- Walks every git repo under your novopay folder
-- Updates configured branches from `origin` (merge, abort on conflict, continue)
-- Auto-stashes uncommitted work, then restores it on your original branch
-- Opens an HTML summary in your browser; the report file is removed when you close that tab
-- No log files are written
+---
 
-## Recommended workflow (IDE indexing)
+## Who is this for?
 
-For the fastest IntelliJ / WebStorm experience after a sync:
+Anyone on the Novopay team who works across multiple repos (`ddp-*` backend branches, `dsa-*` frontend branches) and wants a single command to fetch and update them all without manually `git pull` in each folder.
 
-1. **Close the IDE completely** before you run the updater (IntelliJ indexes git roots heavily; closing avoids it fighting branch checkouts across 30+ repos).
-2. Run **`run.cmd`** (or the IntelliJ external tool - see below) and wait until the console says `DONE` and the browser report opens.
-3. Review the report, then **close the browser tab** (this deletes the HTML file).
-4. **Open the IDE again** on the novopay workspace. Indexing runs once against the updated branches instead of competing with git operations mid-run.
+---
 
-Scheduled runs (9 AM / 9 PM) follow the same idea: they only fire when you have been idle, so the IDE is usually already closed.
+## Requirements
 
-## Screenshots
+| Requirement | Notes |
+|-------------|-------|
+| **Windows** | PowerShell 5.1+ (built into Windows 10/11) |
+| **Git** | On `PATH`; SSH or HTTPS remotes already configured |
+| **Network** | VPN / corporate network if your `origin` needs it |
+| **Novopay folder** | All service repos cloned as siblings under one root |
 
-### Console while running
+No admin rights needed for normal runs.
 
-Repos are processed in a fixed priority order. Stash / restore messages appear when you have local changes.
+---
 
-![Console output during branch sync](docs/images/console-output.png)
+## Quick start (first time)
 
-### HTML report in browser
-
-When the run finishes, a local server opens the report in your default browser. Close the tab when you are done - the file is deleted automatically.
-
-Open [`docs/sample-report.html`](docs/sample-report.html) in a browser for a static preview of the layout. Your live report includes per-repo timing, conflicts, stash events, and the full branch list.
-
-> **Note:** If you previously saw `ERR_CONNECTION_REFUSED` on `127.0.0.1`, update to the latest version - the report server startup race is fixed.
-
-## Quick start
-
-1. Clone this repo (or place it at `novopay/tools/novopay-branch-updater`).
-2. Copy `config.local.json.example` to `config.local.json` if your novopay root is not two levels above this folder.
-3. **Close IntelliJ** (recommended).
+1. Place or clone this tool at `novopay/tools/novopay-branch-updater/` (or anywhere - see [Where does the tool live?](#where-does-the-tool-live)).
+2. If your novopay root is **not** two levels above this folder, copy `config.local.json.example` to `config.local.json` and set `novopayRoot`.
+3. **Close IntelliJ / WebStorm** (strongly recommended - see [Why close the IDE?](#why-close-the-ide)).
 4. Double-click **`run.cmd`**.
-5. Review the browser report, close the tab, then open the IDE.
+5. Wait for `DONE` and the browser report. Review it, then **close the browser tab** (deletes the report file).
+6. Reopen your IDE.
 
 Optional: double-click **`register-schedule.cmd`** once for weekday 9 AM / 9 PM idle-only runs.
 
-## Configure
+---
 
-Edit `config.json` (team defaults) or `config.local.json` (your machine only - gitignored).
+## `run.cmd` vs `run-dry.cmd`
+
+| | **`run.cmd`** | **`run-dry.cmd`** |
+|---|---------------|-------------------|
+| **Purpose** | Real sync | Preview only |
+| **Git fetch** | Yes | No |
+| **Checkout / merge** | Yes | No |
+| **Stash / restore** | Yes, if you have local changes | No |
+| **Browser report** | Opens automatically | Not opened; file written to `.reports/` |
+| **When to use** | Normal daily sync | Before a big sync, or after editing `config.json` |
+
+Both accept extra flags, e.g. `run.cmd -Profile pre-release-sync` or `run-dry.cmd -MaxParallel 1`.
+
+---
+
+## What happens on a real run (`run.cmd`)
+
+For each git repo under your novopay root (except excluded repos):
+
+1. **Pre-flight** - disk space, git lock files, merge/rebase in progress, `origin` reachable.
+2. **Stash** - uncommitted changes are stashed (if any).
+3. **Fetch** - `git fetch --all --prune`.
+4. **Per branch** - checkout branch, fetch if needed, then:
+   - Skip if local is **ahead** of `origin` (unpushed commits - protects your work).
+   - **Fast-forward** if possible (`git merge --ff-only`).
+   - **Merge** if local and remote diverged (when enabled in config).
+   - **Abort** on conflict; continue with next branch.
+5. **Restore** - checkout your original branch; `stash pop` if we stashed.
+6. **Report** - summary opens in browser.
+
+Repos run **3 at a time** by default (configurable). Nothing is ever **pushed** to remote.
+
+---
+
+## Which repos and branches are updated?
+
+### Repos scanned
+
+Every folder under `novopayRoot` that contains a `.git` directory, plus the root itself if it is a git repo.
+
+### Repos excluded (never touched)
+
+Listed in `excludedRepos`. **`bob-the-builder` is excluded by default.**
+
+### Branch policy per repo
+
+| Repo type | How identified | Branches updated |
+|-----------|----------------|------------------|
+| **Frontend** | Folder name in `frontend.repos` | `dsa-qa`, `dsa-prod`, `dsa-uat`, `dsa-bkup-qa`, `dsa-bkup-uat` |
+| **Backend** | Everything else (default) | `ddp-uat`, `ddp-bkup-uat`, `ddp-fea-prod-stable`, `ddp-qa`, `ddp-bkup-qa` |
+| **All local branches** | Folder name in `allLocalBranchesRepos` | Every branch that exists locally (e.g. `trustt-platform-ddp-manual-report-queries`) |
+
+### Process order
+
+Repos in `preferredRepoOrder` run first (lib, creditcard, masterdata, gateway, actor, and so on). All others run alphabetically after.
+
+### Profiles
+
+Override branch lists without editing the main config:
+
+```cmd
+run.cmd -Profile pre-release-sync
+```
+
+`pre-release-sync` updates only `ddp-fea-prod-stable`, `ddp-qa`, and `ddp-uat` on backend repos.
+
+---
+
+## Understanding the HTML report
+
+![HTML branch update report](docs/images/html-report.png)
+
+| Metric | Meaning |
+|--------|---------|
+| **Repos scanned** | Repos actually processed (excludes `excludedRepos`) |
+| **Updated OK** | Branches merged or already up to date |
+| **Merge conflicts** | Branches where merge was aborted |
+| **Skipped** | e.g. local ahead of origin, checkout failed |
+| **SHA changes** | Branches whose commit moved |
+| **Repo update timing** | Per-repo duration; slowest highlighted |
+
+The report is served at `127.0.0.1` so the tool can delete the file when you close the tab. **No data leaves your machine.**
+
+Static preview: [`docs/sample-report.html`](docs/sample-report.html)
+
+Use `-KeepReport` or `report.keepReport: true` to keep the HTML/JSON after the run.
+
+---
+
+## CLI reference
+
+```cmd
+run.cmd                          REM normal run (3 parallel repos)
+run-dry.cmd                      REM dry-run - no git changes
+run.cmd -Profile pre-release-sync
+run.cmd -MaxParallel 1           REM serial (slow network / debugging)
+run.cmd -KeepReport              REM keep report files after run
+```
+
+PowerShell flags: `-DryRun`, `-Profile`, `-MaxParallel`, `-KeepReport`
+
+---
+
+## Configuration
+
+Edit **`config.json`** (team defaults, committed) or **`config.local.json`** (your machine only, gitignored).
 
 | Setting | Purpose |
 |---------|---------|
 | `novopayRoot` | Path to novopay folder. Empty = auto-detect (`../..` from this tool) |
-| `novopayRootEnv` | Environment variable override (default `NOVOPAY_ROOT`) |
-| `reportDirectory` | Where the HTML report is written briefly. Empty = `.reports/` here |
-| `frontend.repos` / `frontend.branches` | Webapp repos use `dsa-*` branches |
-| `backend.branches` | All other repos use these `ddp-*` branches |
-| `allLocalBranchesRepos` | Repos where every **local** branch is updated |
-| `excludedRepos` | Folder names to skip entirely (empty by default) |
-| `preferredRepoOrder` | Process order; unlisted repos run A-Z after |
-| `scheduler.idleMinutes` | Minutes idle before a scheduled run (default `5`) |
-| `scheduler.weekdayTimes` | Task Scheduler times, e.g. `["09:00", "21:00"]` |
+| `novopayRootEnv` | Env var override (default `NOVOPAY_ROOT`) |
+| `frontend.repos` / `frontend.branches` | Webapp repos and their `dsa-*` branches |
+| `backend.branches` | Default `ddp-*` branches for all other repos |
+| `allLocalBranchesRepos` | Repos where every local branch is synced |
+| `excludedRepos` | Folder names skipped entirely (`bob-the-builder` by default) |
+| `preferredRepoOrder` | Priority processing order |
+| `defaultProfile` / `profiles` | Named branch overrides |
+| `execution.maxParallelRepos` | Parallel repo count (default `3`) |
+| `execution.preferFastForward` | Try ff-only before merge (default `true`) |
+| `execution.skipIfLocalAhead` | Skip branches with unpushed commits (default `true`) |
+| `execution.preflightChecks` | Disk / lock / origin checks (default `true`) |
+| `report.writeJson` | Write `.json` alongside HTML (default `true`) |
+| `report.keepReport` | Keep files instead of delete-on-tab-close (default `false`) |
+| `report.notifyOnFailure` | Windows popup on conflicts / stash failures (default `true`) |
+| `scheduler.idleMinutes` | Idle time before scheduled run (default `5`) |
+| `scheduler.weekdayTimes` | Times for Task Scheduler (default `09:00`, `21:00`) |
 
-`bob-the-builder` is updated like any other backend repo unless you add it to `excludedRepos`.
+**Team workflow:** commit `config.json` with shared defaults. Each developer only needs `config.local.json` when their novopay path differs.
+
+---
 
 ## IntelliJ / WebStorm
 
@@ -85,87 +188,140 @@ Edit `config.json` (team defaults) or `config.local.json` (your machine only - g
 
 If you open only a single service repo, set `NOVOPAY_ROOT` or `config.local.json`.
 
-**Tip:** Close the IDE before triggering the external tool, then reopen after the report tab is closed.
+Close the IDE before running; reopen after you close the report tab.
 
-## FAQ
+---
 
-### Where do I put this repo?
+## Scheduled runs
 
-Anywhere. Set `novopayRoot` in `config.local.json` or the `NOVOPAY_ROOT` environment variable. Common layout:
+`register-schedule.cmd` creates two Windows Task Scheduler jobs:
 
-```
-Desktop/novopay/                    # your git repos live here
-Desktop/novopay/tools/novopay-branch-updater/   # this tool
-```
+- **Weekdays only** (Mon-Fri) at **9:00 AM** and **9:00 PM**
+- Runs only after **5 minutes idle** (no keyboard/mouse)
+- Waits up to **2 hours** for idle if you were active at trigger time
+- Laptop must be **on** and you must be **logged in**
 
-Or clone standalone:
-
-```
-git clone https://github.com/trusttAshutosh/novopay-branch-updater.git
-```
-
-### Does it push to remote?
-
-No. Fetch + merge from `origin` only. Nothing is pushed.
-
-### What happens to my uncommitted changes?
-
-They are stashed before the repo is touched, then `stash pop` restores them on your **original branch** after that repo finishes. If pop fails, the stash is kept and the report lists it under **Stash restore failures**.
-
-### What happens on merge conflict?
-
-`git merge --abort` for that branch, repo continues with the next branch. Conflicts are listed in the HTML report. Your original branch is restored at the end of each repo.
-
-### Why close the IDE first?
-
-The tool checks out multiple branches across many repos. IntelliJ (and similar IDEs) run git indexers, VCS hooks, and file watchers in the background. Closing the IDE avoids lock contention, spurious "file changed" churn, and a second full re-index while branches are still switching. Reopening after the run gives you one clean index pass.
-
-### Why does the report use `127.0.0.1`?
-
-Browsers cannot delete a local file opened as `file://`. A tiny localhost server serves the HTML, detects when you close the tab, then deletes the file. No data leaves your machine.
-
-### Scheduled run did nothing - why?
-
-Scheduled runs require **5+ minutes of idle time** (keyboard/mouse) and only run on **weekdays** at the configured times. The laptop must be on and you must be logged in. If you were active at 9 PM, Task Scheduler waits up to 2 hours for idle.
-
-### How do I remove scheduled tasks?
+Remove scheduled tasks:
 
 ```powershell
 Unregister-ScheduledTask -TaskName 'Novopay Branch Updater 9AM' -Confirm:$false
 Unregister-ScheduledTask -TaskName 'Novopay Branch Updater 9PM' -Confirm:$false
 ```
 
-### Can I exclude a repo?
+---
 
-Add its folder name to `excludedRepos` in `config.json` or `config.local.json`.
+## FAQ
 
-### Which branches do frontend repos get?
+### Where does the tool live?
 
-Only repos listed under `frontend.repos` use `frontend.branches` (`dsa-*`). Everything else uses `backend.branches` (`ddp-*`), except `allLocalBranchesRepos`.
+Anywhere. Common layout:
 
-### Does it need admin rights?
+```
+Desktop/novopay/                              # all git repos here
+Desktop/novopay/tools/novopay-branch-updater/ # this tool
+```
 
-No for normal use. Task Scheduler registration runs as your user. If `HttpListener` ever fails on a locked-down machine, run once as admin or use `netsh http add urlacl` for the report port range (rare).
+Or clone standalone and point `novopayRoot` / `NOVOPAY_ROOT` at your repo folder.
+
+### Does it push to remote?
+
+**No.** Fetch and merge from `origin` only. Your unpushed commits stay local.
+
+### What happens to my uncommitted changes?
+
+Stashed before the repo is touched, then restored on your **original branch** after that repo finishes. If `stash pop` fails, the stash is kept and listed under **Stash restore failures** in the report.
+
+### What happens on merge conflict?
+
+`git merge --abort` for that branch. The repo continues with the next branch. Conflicts appear in the report. Your original branch is restored at the end of each repo.
+
+### Why is a branch marked `not-found`?
+
+The branch does not exist locally **and** `origin/<branch>` does not exist after fetch. Common for repos that never had that branch cloned. Not an error - informational only.
+
+### Why is a branch skipped (local ahead)?
+
+`skipIfLocalAhead` is on by default. If you have unpushed commits on that branch, the tool skips it so a merge does not overwrite or complicate your work. Push or rebase manually, then re-run.
+
+### Why close the IDE?
+
+The tool checks out many branches across 30+ repos. IntelliJ indexes git roots and watches files in the background. Closing the IDE avoids lock contention and a second full re-index mid-run. Reopen after the sync for one clean index pass.
 
 ### How long does a full run take?
 
-Depends on repo count and network. Expect several minutes for 30+ repos (see per-repo timing in the report). lib + creditcard are often the slowest.
+Typically **5-15 minutes** for 30+ repos, depending on network and parallel setting. `maxParallelRepos: 3` is roughly 2-3x faster than serial. Per-repo timing is in the report; lib and masterdata are often slowest.
+
+### Can I exclude a repo?
+
+Add its **folder name** (not full path) to `excludedRepos` in `config.json` or `config.local.json`.
+
+### Can I add or remove branches?
+
+Edit `backend.branches`, `frontend.branches`, or a profile in `config.json`. Run `run-dry.cmd` first to preview.
+
+### What is dry-run useful for?
+
+See which branches would fast-forward, merge, skip, or are missing - **without** changing git state. Faster and safe after config changes.
+
+### Why does the report use `127.0.0.1`?
+
+Browsers cannot delete a file opened as `file://`. A tiny local server serves the HTML, detects tab close, then deletes the file.
+
+### Scheduled run did nothing - why?
+
+You were not idle for 5+ minutes, it was a weekend, the laptop was off/asleep, or you were still active at 9 PM (scheduler waits up to 2 hours for idle).
+
+### Does it need admin rights?
+
+No for normal use. Task Scheduler registration runs as your user. Rare: if the report server fails on a locked-down PC, run once as admin or add a URL ACL for the localhost port.
+
+### PowerShell execution policy blocked the script?
+
+The `.cmd` launchers pass `-ExecutionPolicy Bypass`. If you run the `.ps1` directly, use the same flag or set execution policy for your user.
+
+### What about empty repos (no commits)?
+
+Repos with `.git` but no commits on `HEAD` (e.g. fresh clones) are skipped with a clear message. No branches are updated there.
+
+### Are log files written?
+
+**No.** Only a transient HTML report (and optional JSON in `.reports/`). Use `-KeepReport` to retain them.
+
+### What if I see `ERR_CONNECTION_REFUSED` on the report URL?
+
+Update to the latest version - an older build had a race starting the local report server. The current `Open-Novopay-Report.ps1` fixes this.
+
+### What does exit code 2 mean?
+
+At least one merge conflict or stash restore failure occurred. Details are in the report (and a Windows popup if enabled).
+
+---
 
 ## Files
 
 ```
 novopay-branch-updater/
-  config.json                 Team defaults
-  config.local.json           Your overrides (gitignored)
-  run.cmd                     Manual run
-  register-schedule.cmd       Task Scheduler setup
-  scripts/                    PowerShell implementation
-  intellij/externalTools.xml  IDE template
-  docs/images/                README screenshots
-  docs/sample-report.html     Static report preview
-  .reports/                   Transient report output (gitignored)
+  run.cmd                       Normal sync
+  run-dry.cmd                   Dry-run preview
+  register-schedule.cmd         Task Scheduler setup
+  config.json                   Team defaults
+  config.local.json             Your overrides (gitignored)
+  scripts/
+    Update-Novopay-Branches.ps1 Orchestrator
+    Process-Single-Repo.ps1     Per-repo worker
+    Git-Helpers.ps1             ff-only, preflight, SHA helpers
+    Report-Builder.ps1          HTML + JSON report
+  intellij/externalTools.xml    IDE template
+  docs/images/html-report.png   README screenshot
+  docs/sample-report.html       Static report preview
+  .reports/                     Transient output (gitignored)
 ```
 
-## Share with team
+---
 
-Commit `config.json` with team defaults. Each developer copies `config.local.json.example` to `config.local.json` only when their novopay path differs.
+## Share with the team
+
+1. Clone or copy this repo into `novopay/tools/novopay-branch-updater/`.
+2. Commit `config.json` with team branch lists and exclusions.
+3. Each developer copies `config.local.json.example` to `config.local.json` only if their novopay path differs.
+4. Optional: import the IntelliJ external tool and register the schedule.
