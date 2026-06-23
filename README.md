@@ -2,8 +2,6 @@
 
 Windows tool that keeps your local Novopay git branches in sync with `origin` across every repo under your `novopay` folder. One double-click, one HTML report, no log files.
 
-**Repo:** https://github.com/trusttAshutosh/novopay-branch-updater
-
 ---
 
 ## Who is this for?
